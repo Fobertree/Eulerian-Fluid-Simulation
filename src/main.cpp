@@ -3,11 +3,26 @@
 #include <iostream>
 #include <cmath>
 #include "cell.h"
-#include "particle.h"
 #include <vector>
+#include "functions.h"
+
+/*
+- TO-DO (in main)
+
+Compute shader
+Grid setup
+CFL/timestep
+    - set initial guess for timestep
+    - if CFL condition violated, change CFL number and timestep
+*/
 
 // glad must be included before GLFW
 using namespace std;
+
+void marker_and_cell(int n)
+{
+    // Screen reoslution (Windows): https://cplusplus.com/forum/unices/108795/
+}
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height)
 {
@@ -24,6 +39,8 @@ void processInput(GLFWwindow *window)
 
 int main()
 {
+    double tol{0.03};
+
     // glfw initialize and configure
     unordered_map < int, std::vector<float> shapes;
 
@@ -189,5 +206,6 @@ int main()
 // https://learnopengl.com/Getting-started/Hello-Window
 // https://learnopengl.com/Getting-started/Hello-Triangle
 // https://learnopengl.com/Getting-started/Shaders
+// https://stackoverflow.com/questions/16157088/forward-substitution-of-lower-triangular-matrix-how
 // g++ main.cpp glad.c -o main -I../include -I../include/glad -I../include/GLFW -L../src -lglfw3
 // g++ main.cpp glad.c -o main -I../include -I../include/glad -I../include/GLFW -L../src -lglfw3 --I../include/cell -I../include/particle
