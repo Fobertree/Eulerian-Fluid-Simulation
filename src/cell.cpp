@@ -51,19 +51,24 @@ float Cell::get_velocity()
     return velocity;
 }
 
+cellType getLabel()
+{
+    return label;
+}
+
 float Cell::p()
 {
     // p_i,j
     return pressure;
 }
 
-float Cell::&u()
+float &Cell::&u()
 {
     // u_(i-1/2,j)
     return &velocities[3];
 }
 
-float Cell::&v()
+float &Cell::&v()
 {
     // u_(i,j-1/2)
     return &velocities[2];

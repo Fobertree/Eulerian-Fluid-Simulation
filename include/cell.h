@@ -78,6 +78,7 @@ public:
 
     // getters
     float get_velocity();
+    cellType getLabel();
 
     float p();  // p_i,j
     float &u(); // u_(i-1/2,j)

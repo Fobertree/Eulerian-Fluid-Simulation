@@ -20,8 +20,13 @@ float second_rk(std::vector<float> x_g, std::vector u_g, float dt)
     return x_p;
 }
 
-std::vector<float> project(float dt, float u_vec); // make u divergence-free, enforce solid-wall boundary
+std::vector<float> project(float dt, float u_vec) // make u divergence-free, enforce solid-wall boundary
+{
+    // calculate negative divergence b
+    // set A
+}
 float interpolate(float dt, float u_vec);
+
 // multiply a vector by a scalar
 void scalar_mult(std::vector<float> &vec, float scalar)
 {
@@ -48,13 +53,52 @@ std::vector<float> scalar_mult(std::vector<float> vec, float scalar)
 
     return vec;
 }
+template <class T>
+std::vector<std::vector<float>> matrixMult(T matrix_a, T matrix_b) // set up a template for this
+{
+    try
+    {
+        int r1 = matrix_a.size();
+        int c1 = matrix_a[0].size();
+        int r2 = matrix_b.size();
+        int c2 = matrix_b.size();
 
-std::vector<std::vector<float>> matrixMult(std::vector<std::vector<float>> matrix_a, std::vector<std::vector<float>> matrix_b);
+        if (c1 != r2)
+        {
+            std::runtime_error("Improper dimensions for multiplying matrix.")
+        }
+        float mult[r1][c2];
+
+        for (int i = 0; i < r1; ++i)
+        {
+            for (int j = 0; j < c2; ++j)
+            {
+                mult[i][j] = 0;
+                for (int k = 0; k < r2; k++)
+                {
+                    mult[i][j] += matrix_a[i][k] * matrix_b[k][j];
+                }
+            }
+        }
+
+        return mult
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << e.what() << '\n';
+        printf("Here are matrix dimensions: r1: %f, c1: %f, r2: %f, c2: %f", r1, c1, r2, c2);
+    }
+}
 
 // subtract two vectors
 std::vector vec_subtract(std::vector<float> vec1, std::vector<float> vec2)
 {
     // subtract 2x1 vectors
+    if (vec1.size() != vec2.size() && vec1.size != 2)
+    {
+        printf("Encountering error in vec_subtract: vec1 size: %i, vec2 size: %i", vec1.size(), vec2.size());
+        std::runtime_error("Invlid vector size for vector subtraction.")
+    }
     std::vector<float> res = {vec1[0] - vec2[0], vec1[1] - vec2[1]};
     return res;
 }
@@ -113,8 +157,10 @@ float vectorNorm(std::vector<float> vec)
     return sqrt(res);
 }
 
-float advect(u_vec, dt, q);
-void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector);
+float advect(u_vec, dt, q); // simple advection from cell bounds
+{
+}
+void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector); // matrixMult
 std::vector<float> semiLagrangian(std::vector<float> x_g, std::vector u_g, float dt, std::vector<std::vector<Cell>> &grid)
 {
     // call runge-kutta to get x_p
@@ -128,16 +174,129 @@ void checkTimestep(float &dt, float u_max, float dx, int cfl_num)
     float threshold = cfl_num * (dx / u_max);
     dt = min(dt, threshold);
 }
-float updatePressure(std::vector<float> u_n, float dt, float rho, float dx, float p_next, float p_low);
-float rhs(float dt, float rho, float dx, float p_next, float p_low);
-std::vector<std::vector<float>> getPreconditioner(std::vector<std::vector<Cell>> &grid);
+float updatePressure(std::vector<float> u_n, float dt, float density, float dx, float p_next, float p_low);
+float updateVelocity(Grid &grid, float dt, float density, float dx)
+{
+    // pressure gradient update
+    float scale{dt / (density * dx)};
+    for (int i = 0; i < grid.size(); i++)
+    {
+        for (int j = 0; j < grid[0].size(); j++)
+        {
+            // update u
+            if (label(i - 1, j) == FLUID || label(i, j) == FLUID)
+            {
+                if (label(i, j - 1) == SOLID || label(i, j) == SOLID)
+                {
+                    u(i, j) = usolid(i, j);
+                }
+                else
+                {
+                    u(i, j) -= scale * (p(i, j) - p(i - 1, j));
+                }
+            }
+            else
+            {
+                // mark as unknown
+                u(i, j) = <NULL, NULL>;
+            }
+            // update v
+            if (label(i, j - 1) == FLUID || label(i, j) == FLUID)
+            {
+                if (label(i, j - 1) == SOLID || label(i, j) == SOLID)
+                {
+                    v(i, j) = vsolid(i, j);
+                }
+                else
+                {
+                    v(i, j) -= scale * (p(i, j) - p(i, j - 1));
+                }
+            }
+            else
+            {
+                // mark as unknwon
+                v(i, j) = <NULL, NULL>;
+            }
+        }
+    }
+}
+
+float rhs(float dt, float density, float dx, float p_next, float p_low)
+{
+    return (dt / density) * ((p_next - p_low) / dx);
+}
+
+std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, float dx, float density)
+{
+    // prepare A
+    using namespace Grid;
+
+    int r{grid.size()};
+    int c{grid[0].size()};
+    float scale { dt / (density * dx * dx) }
+
+    for (int i = 0; i < r; i++)
+    {
+        for (int j = 0; j < c; j++)
+        {
+            if (label(i, j) == FLUID)
+            {
+                // handle negative x neighbor
+                if (label(i - 1, j) == FLUID)
+                {
+                    A(i, j) += scale;
+                }
+                // handle positive x neighbor
+                if (label(i + 1, j) == FLUID)
+                {
+                    Adiag(i, j) += scale;
+                    Ax(i, j) = -scale;
+                }
+                else if (label(i + 1, j) == EMPTY)
+                {
+                    Adiag(i, j) += scale;
+                }
+                // handle negative y neighbor
+                if (label(i, j - 1) == FLUID)
+                {
+                    Adiag(i, j) += scale;
+                }
+                // handle positive y neighbor
+                if (label(i, j + 1) == FLUID)
+                {
+                    Adiag(i, j) += scale;
+                    Ay(i, j) = -scale;
+                }
+                else if (label(i, j + 1) == EMPTY)
+                {
+                    Adiag(i, j) += scale;
+                }
+            }
+        }
+    }
+}
+
 std::vector<std::vector<float>> get_xq_j_quantities(std::vector<std::vector<Cell>> &grid, std::vector<float> x_p)
 {
     // return vector: {x_j,q_j,x_(j+1),q_(j+1)}
+    // do we need to check if points are exact integer?
     std::vector<std::vector<float>> j_vecs;
+    int r_low{floor(x_p[0])};
+    int r_high{ceil(x_p[0])};
+    int c_low{floor(x_p[1])};
+    int c_high{ceil(x_p[1])};
 
-    std::vector<float> x_j = {0, 0};
+    std::vector<float> x_j = {r_low, c_low};
     std::vector<float> q_j = {0, 0};
-    std::vector<float> x_j1 = {0, 0};
+    std::vector<float> x_j1 = {r_high, c_high};
     std::vector<float> q_j1 = {0, 0};
+
+    // Do something
+
+    j_vecs.push_back(x_j);
+    j_vecs.push_back(q_j);
+    j_vecs.push_back(x_j1);
+    j_vecs.push_back(q_j1);
+
+    return j_vecs;
 }
