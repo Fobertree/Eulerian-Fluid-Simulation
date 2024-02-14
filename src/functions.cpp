@@ -25,7 +25,6 @@ std::vector<float> project(float dt, float u_vec) // make u divergence-free, enf
     // calculate negative divergence b
     // set A
 }
-float interpolate(float dt, float u_vec);
 
 // multiply a vector by a scalar
 void scalar_mult(std::vector<float> &vec, float scalar)
@@ -111,18 +110,28 @@ float linear_interpolate(std::vector<float> x_p, float dx, std::vector<std::vect
     // q_j, q_j1 come from boundaries of cell
     /*
     Create a function to get x_j, x_j+1, q_j, q_j+1
+    std::round
     */
-    std::vector<std::vector<float>> j_vectors = get_xq_j_quantities(grid, x_p);
-    // returns vector: {x_j,q_j,x_(j+1),q_(j+1)}
-    std::vector<float> x_j = j_vectors[0];
-    std::vector<float> q_j = j_vectors[1];
-    std::vector<float> x_j1 = j_vectors[2];
-    std::vector<float> q_j1 = j_vectors[3];
 
-    float a = (vectorNorm(vec_subtract(x_p - x_j))) / dx;
-    // j subscript: old location
-    q_i1 = q_j * (1 - a) + a * (q_j1);
-    return q_i1;
+    std::vector<float> cell_coords = {std::round(x_p[0]), std::round(x_p[1])};
+
+    Cell gridCell = grid[cell_coords[0], cell_coords[1]]; // should avoid out-of-bounds
+
+    //
+    // std::vector<std::vector<float>> j_vectors = get_xq_j_quantities(grid, x_p);
+    // returns vector: {x_j,q_j,x_(j+1),q_(j+1)}
+    std::vector<std::vector<float>> j_vectors = gridCell.getVelocities();
+    std::vector<float> a = {1 - (cell_coords[0] + 0.5 - x_p[0]), 1 - (cell_coords[1] + 0.5 - x_p[1])}; // 0 <= alpha <= 1
+    // treat dx = 1, since coords are defined in units of dx
+    // alpha is difference weight from lower bound
+
+    // qn+1 = (1 − α)q^n_j + αq^n_j+1.
+
+    std::vector<float> q;
+    q.push_back((1 - a) * j_vectors[3] + a * j_vectors[1]);
+    q.push_back((1 - a) * j_vectors[2] + a * j_vectors[0]);
+
+    return q;
 }
 
 float cubic_interpolate();
@@ -157,16 +166,18 @@ float vectorNorm(std::vector<float> vec)
     return sqrt(res);
 }
 
-float advect(u_vec, dt, q); // simple advection from cell bounds
-{
-}
 void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector); // matrixMult
 std::vector<float> semiLagrangian(std::vector<float> x_g, std::vector u_g, float dt, std::vector<std::vector<Cell>> &grid)
 {
+    // This function serves as our advection algorithm
+    // mainly advects velocity, but can be used to advect other quantities
+    // This function is the same as advect(u_vec, dt, q) from the textbook
     // call runge-kutta to get x_p
     std::vector<float> x_p = second_rk(x_g, u_g, dt);
-    // get velocity vector at x_p TO-DO
-    linear_interpolate(x_p, dx, grid);
+    std::vector<float> v_p;
+
+    // linear interpolate to obtain velocity vector at x_p
+    v_p = linear_interpolate(x_p, dx, grid);
 }
 
 void checkTimestep(float &dt, float u_max, float dx, int cfl_num)
@@ -278,9 +289,11 @@ std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, flo
 
 std::vector<std::vector<float>> get_xq_j_quantities(std::vector<std::vector<Cell>> &grid, std::vector<float> x_p)
 {
+    // This function returns velocity quantities used in linear interpolation
     // return vector: {x_j,q_j,x_(j+1),q_(j+1)}
     // do we need to check if points are exact integer?
     std::vector<std::vector<float>> j_vecs;
+    auto gridCell = grid[std::round(x_p[0]), std::round(x_p[1])];
     int r_low{floor(x_p[0])};
     int r_high{ceil(x_p[0])};
     int c_low{floor(x_p[1])};

@@ -6,30 +6,29 @@
 // declare all functions
 float second_rk(std::vector<float> x_g, std::vector u_g, float dt); // 2nd order Runge-Kutta
 std::vector<float> project(float dt, float u_vec);                  // TO DO
-float interpolate(float dt, float u_vec);                           // TO DO
 void scalar_mult(std::vector<float> &vec, float scalar);
 template <class T>
-std::vector<std::vector<float>> matrixMult(T matrix_a, T matrix_b);
+std::vector<std::vector<float>> matrixMult(T matrix_a, T matrix_b); // CHECK
 constexpr auto applyA = &matrixMult;
 std::vector<float> scalar_mult(std::vector<float> vec, float scalar);
 std::vector vec_subtract(std::vector<float> vec1, std::vector<float> vec2);
 float linear_interpolate(std::vector<float> x_p, float dx, std::vector<std::vector<Cell>> &grid);
 
-// --TO-DO--
-float cubic_interpolate();
-float mic_zero();
+// --TO-DO--?
+float cubic_interpolate(); // TO DO (low priority since we already have linear interpolation)
+float mic_zero();          // TO DO
 float dot_product(std::vector<float> v1, std::vector<float> v2);
-float vectorNorm(std::vector<float>); // defaulting to euclidean but may change
+float vectorNorm(std::vector<float>); // defaulting to euclidean norm but may change
 float advect(u_vec, dt, q);
 void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector); // one argument = preconditioner (from MIC(0) or IC). PCG
-std::vector<float> semiLagrangian(std::vector<float> x_g, std::vector u_g, float dt);
+std::vector<float> semiLagrangian(std::vector<float> x_g, std::vector u_g, float dt);                // IN PROGRESS
 void checkTimestep(float &dt, float u_max, float dx, int cfl_num);
-float updatePressure(std::vector<float> u_n, float dt, float density, float dx, float p_next, float p_low);
-float updateVelocity(Grid &grid, float dt, float density, float dx); // update velocity based on rhs and pressure
+float updatePressure(std::vector<float> u_n, float dt, float density, float dx, float p_next, float p_low); // DELETE?
+float updateVelocity(Grid &grid, float dt, float density, float dx);                                        // update velocity based on rhs and pressure. IN PROGRESS
 float rhs(float dt, float density, float dx, float p_next, float p_low);
-std::vector<std::vector<float>> getPreconditioner(Grid &grid); // setup A matrix
-std::vector<std::vector<float>> get_xq_j_quantities(Grid &grid, std::vector<float> x_p);
-std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, float dx, float density);
+std::vector<std::vector<float>> getPreconditioner(Grid &grid);                                         // setup A matrix
+std::vector<std::vector<float>> get_xq_j_quantities(Grid &grid, std::vector<float> x_p);               // DELETE?
+std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, float dx, float density); // CHECK
 // TODO:
 std::vector<float> usolid(i, j);
 std::vector<float> vsolid(i, j);
