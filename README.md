@@ -30,7 +30,12 @@ We need to properly test a 2D fluid simulation before upgrading to a 3D one.
   - Set up entries of coefficient matrix A
   - We perform Modified Incomplete Cholesky Level Zero to get our preconditioner
     - MIC(0) and the preconditioner serve to optimize computational speed/efficiency
+    - Note: The Cholesky Decomposition is sometimes intuitively understood as the "square root of a matrix"
   - Use our given matrix A and vector b, get pressure vector via Preconditioned Conjugate Gradient
   - Use new pressure values to update velocity
+
+Misc.
+
+Add usolid(i,j)
 
 ![Whiteboard Outline](./Images/IMG_2745.jpg)

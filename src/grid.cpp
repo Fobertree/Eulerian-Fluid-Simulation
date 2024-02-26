@@ -44,16 +44,21 @@ cellType Grid::label(int i, int j)
     return getCell(i, j)->getLabel();
 }
 
-Cell &Grid::getCell(int i, int j)
+Cell Grid::&getCell(int i, int j)
 {
-    return grid[i][j] &;
+    return &grid[i][j];
 }
 
-void Grid::Adiag(int i, int j)
+void Grid::&Adiag(int i, int j)
 {
     // check what matrix A does
-    std::vector<std::vector<float>> &matrixA = getMatrixA;
+    std::vector<std::vector<float>> &matrixA = getMatrixA();
     return matrixA[i][j];
 }
-void Grid::Ax(int i, int j);
-void Grid::Ay(int i, int j);
+
+void Grid::&Ax(int i, int j)
+{
+}
+void Grid::&Ay(int i, int j)
+{
+}

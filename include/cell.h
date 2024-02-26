@@ -99,6 +99,8 @@ private:
         u_a + scalar_mult(u_a, g_vec);
     }
 
+    cellType label;
+
     enum cellType
     {
         FLUID : 1,

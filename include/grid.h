@@ -16,9 +16,9 @@ public:
     Cell &getCell(int i, int j);
 
     // A matrix
-    void Adiag(int i, int j);
-    void Ax(int i, int j);
-    void Ay(int i, int j);
+    void &Adiag(int i, int j);
+    void &Ax(int i, int j);
+    void &Ay(int i, int j);
 
 private:
     std::vector<std::vector<float>> matrixA;

@@ -166,7 +166,11 @@ float vectorNorm(std::vector<float> vec)
     return sqrt(res);
 }
 
-void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector); // matrixMult
+void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector) // matrixMult
+{
+    matrixMult(vector, preconditioner);
+}
+
 std::vector<float> semiLagrangian(std::vector<float> x_g, std::vector u_g, float dt, std::vector<std::vector<Cell>> &grid)
 {
     // This function serves as our advection algorithm

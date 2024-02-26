@@ -20,8 +20,8 @@ float mic_zero();          // TO DO
 float dot_product(std::vector<float> v1, std::vector<float> v2);
 float vectorNorm(std::vector<float>); // defaulting to euclidean norm but may change
 float advect(u_vec, dt, q);
-void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector); // one argument = preconditioner (from MIC(0) or IC). PCG
-std::vector<float> semiLagrangian(std::vector<float> x_g, std::vector u_g, float dt);                // IN PROGRESS
+void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector);                        // one argument = preconditioner (from MIC(0) or IC). PCG
+std::vector<float> semiLagrangian(std::vector<float> x_g, std::vector u_g, float dt, std::vector<std::vector<Cell>> &grid); // IN PROGRESS
 void checkTimestep(float &dt, float u_max, float dx, int cfl_num);
 float updatePressure(std::vector<float> u_n, float dt, float density, float dx, float p_next, float p_low); // DELETE?
 float updateVelocity(Grid &grid, float dt, float density, float dx);                                        // update velocity based on rhs and pressure. IN PROGRESS

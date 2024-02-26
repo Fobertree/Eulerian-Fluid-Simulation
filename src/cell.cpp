@@ -51,7 +51,7 @@ float Cell::get_velocity()
     return velocity;
 }
 
-cellType getLabel()
+cellType Cell::getLabel()
 {
     return label;
 }
