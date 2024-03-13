@@ -49,16 +49,34 @@ Cell Grid::&getCell(int i, int j)
     return &grid[i][j];
 }
 
-void Grid::&Adiag(int i, int j)
+// Matrix A functions for preconditioner
+
+float &Grid::Adiag(int i, int j)
 {
     // check what matrix A does
-    std::vector<std::vector<float>> &matrixA = getMatrixA();
-    return matrixA[i][j];
+    return &matrixA[i][j][0];
 }
 
-void Grid::&Ax(int i, int j)
+float &Grid::Ax(int i, int j)
 {
+    return &matrixA[i][j][1];
 }
-void Grid::&Ay(int i, int j)
+float &Grid::Ay(int i, int j)
 {
+    return &matrixA[i][j][2];
+}
+
+float Grid::getAdiag(i, j)
+{
+    return matrixA[i][j][0];
+}
+
+float Grid::getAx(i, j)
+{
+    return matrixA[i][j][1];
+}
+
+float Grid::getAy(i, j)
+{
+    return matrixA[i][j][2];
 }

@@ -166,9 +166,48 @@ float vectorNorm(std::vector<float> vec)
     return sqrt(res);
 }
 
-void applyPreconditioner(std::vector<std::vector<float>> preconditioner, std::vector<float> vector) // matrixMult
+void applyPreconditioner(std::vector<std::vector<float>> precon, std::vector<float> r)
 {
-    matrixMult(vector, preconditioner);
+    // Perform both triangular solves to apply MIC preconditioner
+    int nx{precon.size() - 1};
+    int ny{precon[0].size() - 1};
+    // Lq = r (forward substitution). L is lower triangular matrix
+    // solve for q. A is our coefficient matrix and r is b vector
+    float t;
+    std::vector<std::vector<float>> q(ny, std::vector<float>(nx, 0));
+
+    // optimization: put i on inner-loop because of how memory is arranged
+    std::vector<float> jfkd;
+    for (int j = 1; j <= ny; j++)
+    {
+        for (int i = 1; i <= nx; i++)
+        {
+            if (label(i, j) == FLUID)
+            {
+                t = r - getAx(i - 1, j) * precon[i - 1][j] * q[i - 1][j] - getAy(i, j - 1) * precon[i][j - 1] * q[i][j - 1];
+                q[i][j] = t * precon[i][j];
+            }
+        }
+    }
+
+    // L^T z = q (back substitution)
+
+    std::vector<std::vector<float>> z(ny, std::vector<float>(nx, 0));
+
+    for (int j = ny; j >= 1; j--)
+    {
+        for (int i = nx; i >= 1; i--)
+        {
+            if (label(i, j) == FLUID)
+            {
+                t = q[i][j] - getAx(i, j) * precon[i][j] * z[i + 1][j] - getAy(i, j) * precon[i][j] * z[i][j + 1];
+                z[i][j] = t * precon[i][j];
+            }
+        }
+    }
+    // Solve z = Mr
+
+    return z;
 }
 
 std::vector<float> semiLagrangian(std::vector<float> x_g, std::vector u_g, float dt, std::vector<std::vector<Cell>> &grid)
@@ -189,7 +228,11 @@ void checkTimestep(float &dt, float u_max, float dx, int cfl_num)
     float threshold = cfl_num * (dx / u_max);
     dt = min(dt, threshold);
 }
-float updatePressure(std::vector<float> u_n, float dt, float density, float dx, float p_next, float p_low);
+float updatePressure(std::vector<float> u_n, float dt, float density, float dx, float p_next, float p_low)
+{
+    // part of projection routine
+    return 0.0;
+}
 float updateVelocity(Grid &grid, float dt, float density, float dx)
 {
     // pressure gradient update
@@ -213,7 +256,7 @@ float updateVelocity(Grid &grid, float dt, float density, float dx)
             else
             {
                 // mark as unknown
-                u(i, j) = <NULL, NULL>;
+                u(i, j) = {NULL, NULL};
             }
             // update v
             if (label(i, j - 1) == FLUID || label(i, j) == FLUID)
@@ -230,7 +273,7 @@ float updateVelocity(Grid &grid, float dt, float density, float dx)
             else
             {
                 // mark as unknwon
-                v(i, j) = <NULL, NULL>;
+                v(i, j) = {NULL, NULL};
             }
         }
     }
@@ -238,12 +281,13 @@ float updateVelocity(Grid &grid, float dt, float density, float dx)
 
 float rhs(float dt, float density, float dx, float p_next, float p_low)
 {
+    // I think this might be wrong. See 5.3
     return (dt / density) * ((p_next - p_low) / dx);
 }
 
 std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, float dx, float density)
 {
-    // prepare A
+    // prepare A. 5.5
     using namespace Grid;
 
     int r{grid.size()};
@@ -316,4 +360,89 @@ std::vector<std::vector<float>> get_xq_j_quantities(std::vector<std::vector<Cell
     j_vecs.push_back(q_j1);
 
     return j_vecs;
+}
+
+// Projection Routine
+
+std::vector<std::vector<float>> getPreconditioner(Grid &grid)
+{
+    // Perform MIC(0)
+    /*
+    Cholesky Decomposition:
+    Diag: 𝐷_(𝑗,𝑗)=√(𝐴_(𝑗,𝑗)−∑_(𝑘=1)^(𝑗−1)(𝐷_(𝑗,𝑘)^2 ))
+    Non-diag: 𝐷_(𝑖,𝑗)=(𝐴_(𝑖,𝑗)−∑_(𝑘=1)^(𝑗−1)(〖𝐷_(𝑖,𝑘) 𝐷_(𝑗,𝑘) 〗))/𝐷_(𝑗,𝑗)
+
+    MIC compromises on accuracy but has a lot faster preconditioner by generating a sparser matrix
+    */
+    std::vector<std::vector<float>> precon(grid.size(), std::vector<float>(grid[0].size(), 0));
+
+    float tau{0.97};   // tuning constant
+    float sigma{0.25}; // safety constant
+    float e{0};        // temporary value, helps when summing squares (see Cholesky decomp formula)
+
+    for (int i = 1; i < grid.size(); i++)
+    {
+        for (int j = 1; j < grid.size(); j++)
+        {
+            if (label(i, j) == FLUID)
+            {
+                e = getAdiag(i, j) - pow(getAx(i, j) * precon[i - 1][j], 2) - pow(getAy(i, j) * precon[i][j - 1], 2) - tau * (getAx(i, j) * (getAy(i, j) * pow(precon[i - 1][j], 2)) + getAy(i, j) * (getAx(i, j) * pow(precon[i - 1][j], 2)));
+
+                if (e < sigma * getAdiag(i, j))
+                {
+                    e = getAdiag(i, j);
+                }
+                precon[i][j] = 1 / (sqrt(e));
+            }
+        }
+    }
+
+    return precon;
+}
+
+std::vector<std::vector<float>> fowardSub(std::vector<std::vector> A, std::vector<float> b)
+{
+    // Lq = b
+    // solve for q, which is pressure column vector
+    int n{A.size()}; // # of rows
+    std::vector<float> x = std::vector<float>(n, 0);
+    float tmp;
+
+    for (int i = 0; i < n; i++)
+    {
+        tmp = b[i];
+        for (int j = 0; j < i - 1; j++)
+        {
+            tmp = tmp - (A[i][j] * x[j]);
+        }
+        x[i] = tmp / (L[i][i])
+    }
+    return x;
+}
+
+std::vector<float> pcg(std::vector<std::vector<float>> A, std::vector<float> r, Grid &grid)
+{
+    // Ap = b, where b is r
+    const int maxItr = 50;
+
+    std::vector<float> p(A[0].size(), 0);
+
+    bool zeros = std::all_of(v.begin(), v.end(), [](int i)
+                             { return i == 0; });
+    if (zeros)
+    {
+        return p;
+    }
+    std::vector<float> s;
+    float sigma;
+
+    std::vector<std::vector<float>> precon = getPreconditioner(grid &);
+    std::vector<float> z = applyPreconditioner(precon, r);
+    sigma = dot_product(z, r);
+
+    for (int i = 0; i < maxItr; i++)
+    {
+        z = applyA(s); // create apply A
+        a = sigma / dot_product(z, s);
+    }
 }

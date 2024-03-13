@@ -28,7 +28,7 @@ We need to properly test a 2D fluid simulation before upgrading to a 3D one.
 - Project velocity (incompressibility condition) TO-DO
   - Calculate negative divergence in function rhs(), store in vector b
   - Set up entries of coefficient matrix A
-  - We perform Modified Incomplete Cholesky Level Zero to get our preconditioner
+  - We perform Modified Incomplete Cholesky Decomposition Level Zero to get our preconditioner
     - MIC(0) and the preconditioner serve to optimize computational speed/efficiency
     - Note: The Cholesky Decomposition is sometimes intuitively understood as the "square root of a matrix"
   - Use our given matrix A and vector b, get pressure vector via Preconditioned Conjugate Gradient
@@ -39,3 +39,11 @@ Misc.
 Add usolid(i,j)
 
 ![Whiteboard Outline](./Images/IMG_2745.jpg)
+
+Working on
+
+- Update velocity from external forces
+- 5.5: Setup A woo
+- 5.7: get MIC(0) preconditioner woo
+- 5.8: Apply MIC preconditioner - NOW WORKING ON
+- 5.6: PCG

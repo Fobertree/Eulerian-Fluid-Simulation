@@ -15,17 +15,21 @@ public:
     std::vector<std::vector<Cell>> &getGrid();
     Cell &getCell(int i, int j);
 
-    // A matrix
-    void &Adiag(int i, int j);
-    void &Ax(int i, int j);
-    void &Ay(int i, int j);
+    // Operations on matrix A
+    // These three functions: 77
+    // Index of each pos: adiag(0), ax(1), ay(2)
+    float &Adiag(int i, int j); // respective A diag
+    float &Ax(int i, int j);    // positive x neighbor
+    float &Ay(int i, int j);    // positive y neighbor
+
+    float getAx(i, j); // Aplusi
+    float getAy(i, j); // Aplusj
 
 private:
     std::vector<std::vector<float>> matrixA;
     float dx;
     float density;
     std::vector<std::vector<Cell>> grid;
-    std::vector<std::vector<float>> matrixA;
 }
 
 #endif

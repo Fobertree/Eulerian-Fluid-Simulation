@@ -1,5 +1,8 @@
 #ifndef FUNCTIONS_H
 #define FUNCTIONS_H
+#define std ::vector<std::vector<float>> vvf;
+#define std ::vector<float> vf;
+
 #include <vector>
 #include "grid.h"
 
@@ -7,6 +10,7 @@
 float second_rk(std::vector<float> x_g, std::vector u_g, float dt); // 2nd order Runge-Kutta
 std::vector<float> project(float dt, float u_vec);                  // TO DO
 void scalar_mult(std::vector<float> &vec, float scalar);
+std::vector<float> linear_combination(vf v1, vf v2, float s1 = 1, float s2 = 1);
 template <class T>
 std::vector<std::vector<float>> matrixMult(T matrix_a, T matrix_b); // CHECK
 constexpr auto applyA = &matrixMult;
@@ -29,6 +33,9 @@ float rhs(float dt, float density, float dx, float p_next, float p_low);
 std::vector<std::vector<float>> getPreconditioner(Grid &grid);                                         // setup A matrix
 std::vector<std::vector<float>> get_xq_j_quantities(Grid &grid, std::vector<float> x_p);               // DELETE?
 std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, float dx, float density); // CHECK
+std::vector<std::vector<float>> fowardSub(std::vector<std::vector> A, std::vector<float> b);
+std::vector<float> pcg(std::vector<std::vector<float>> A, std::vector<float> r);
+
 // TODO:
 std::vector<float> usolid(i, j);
 std::vector<float> vsolid(i, j);
