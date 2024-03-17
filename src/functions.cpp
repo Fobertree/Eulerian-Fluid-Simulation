@@ -41,6 +41,24 @@ void scalar_mult(std::vector<float> &vec, float scalar)
         }
     }
 }
+
+std::vector<float> linear_combination(vf v1, vf v2, float s1 = 1, float s2 = 1)
+{
+    if (s1 != 1)
+    {
+        scalar_mult(&v1, s1);
+    }
+
+    if (s2 != 1)
+    {
+        scalar_mult(&v2, s2);
+    }
+
+    std::assert(v1.size() == v2.size());
+
+    for ()
+}
+
 // multiply a vector by a scalar
 std::vector<float> scalar_mult(std::vector<float> vec, float scalar)
 {
@@ -144,6 +162,8 @@ float dot_product(std::vector<float> v1, std::vector<float> v2)
     }
     float res{0};
     int length{v1.size()};
+
+    // seems replacable by std::inner_product
 
     for (int i = 0; i < length; i++)
     {

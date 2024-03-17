@@ -1,7 +1,7 @@
 #ifndef FUNCTIONS_H
 #define FUNCTIONS_H
-#define std ::vector<std::vector<float>> vvf;
-#define std ::vector<float> vf;
+typedef std ::vector<std::vector<float>> vvf;
+typedef std ::vector<float> vf;
 
 #include <vector>
 #include "grid.h"
