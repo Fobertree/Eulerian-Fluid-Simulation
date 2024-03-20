@@ -443,7 +443,9 @@ std::vector<std::vector<float>> fowardSub(std::vector<std::vector> A, std::vecto
 std::vector<float> pcg(std::vector<std::vector<float>> A, std::vector<float> r, Grid &grid)
 {
     // Ap = b, where b is r
-    const int maxItr = 50;
+    // optimize with BLAS. This should be the most time consuming task.
+    const static int maxItr = 50;
+    const static int tol = 10 * *-3;
 
     std::vector<float> p(A[0].size(), 0);
 
@@ -454,9 +456,12 @@ std::vector<float> pcg(std::vector<std::vector<float>> A, std::vector<float> r, 
         return p;
     }
     std::vector<float> s;
+    float beta;
     float sigma;
+    float sigma_new
 
-    std::vector<std::vector<float>> precon = getPreconditioner(grid &);
+        std::vector<std::vector<float>>
+            precon = getPreconditioner(grid &);
     std::vector<float> z = applyPreconditioner(precon, r);
     sigma = dot_product(z, r);
 
@@ -464,5 +469,28 @@ std::vector<float> pcg(std::vector<std::vector<float>> A, std::vector<float> r, 
     {
         z = applyA(s); // create apply A
         a = sigma / dot_product(z, s);
+
+        // linear combination of vectors
+        p = linear_combination(s, p, a);
+        z = linear_combination(z, r, a);
+
+        if (r <= tol)
+        {
+            return p;
+        }
+        z = applyPreconditioner(precon, r);
+        sigma_new = dot_product(z, r);
+
+        beta = sigma_new / sigma;
+        s = linear_combination(s, z, beta);
+        sigma = sigma_new;
     }
+
+    std::cout << "Iteration limit exceeded." << std::endl;
+    return p;
+}
+
+void addGravity(std::vectr<float> &u_a, float dt, float g)
+{
+    u_a[1] = u_a[1] + dt * g
 }

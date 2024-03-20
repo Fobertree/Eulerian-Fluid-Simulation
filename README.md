@@ -43,7 +43,7 @@ Add usolid(i,j)
 Working on
 
 - Update velocity from external forces
-- 5.5: Setup A woo
-- 5.7: get MIC(0) preconditioner woo
-- 5.8: Apply MIC preconditioner - NOW WORKING ON
+- 5.5: Setup A
+- 5.7: get MIC(0) preconditioner
+- 5.8: Apply MIC preconditioner
 - 5.6: PCG

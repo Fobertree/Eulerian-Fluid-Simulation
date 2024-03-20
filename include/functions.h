@@ -34,8 +34,8 @@ std::vector<std::vector<float>> getPreconditioner(Grid &grid);                  
 std::vector<std::vector<float>> get_xq_j_quantities(Grid &grid, std::vector<float> x_p);               // DELETE?
 std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, float dx, float density); // CHECK
 std::vector<std::vector<float>> fowardSub(std::vector<std::vector> A, std::vector<float> b);
-std::vector<float> pcg(std::vector<std::vector<float>> A, std::vector<float> r);
-
+vf pcg(std::vector<std::vector<float>> A, std::vector<float> r, Grid &grid);
+void addGravity(std::vector<float> &u_a, float dt, float g);
 // TODO:
 std::vector<float> usolid(i, j);
 std::vector<float> vsolid(i, j);
