@@ -47,3 +47,7 @@ Working on
 - 5.7: get MIC(0) preconditioner
 - 5.8: Apply MIC preconditioner
 - 5.6: PCG
+
+Next Steps
+- Add support for solids
+- 

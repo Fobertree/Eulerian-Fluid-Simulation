@@ -8,7 +8,7 @@ typedef std ::vector<float> vf;
 
 // declare all functions
 float second_rk(std::vector<float> x_g, std::vector u_g, float dt); // 2nd order Runge-Kutta
-std::vector<float> project(float dt, float u_vec);                  // TO DO
+std::vector<float> project(float dt, Cell cell);                  // DOING
 void scalar_mult(std::vector<float> &vec, float scalar);
 std::vector<float> linear_combination(vf v1, vf v2, float s1 = 1, float s2 = 1);
 template <class T>
@@ -30,6 +30,7 @@ void checkTimestep(float &dt, float u_max, float dx, int cfl_num);
 float updatePressure(std::vector<float> u_n, float dt, float density, float dx, float p_next, float p_low); // DELETE?
 float updateVelocity(Grid &grid, float dt, float density, float dx);                                        // update velocity based on rhs and pressure. IN PROGRESS
 float rhs(float dt, float density, float dx, float p_next, float p_low);
+float rhs(Cell cell);
 std::vector<std::vector<float>> getPreconditioner(Grid &grid);                                         // setup A matrix
 std::vector<std::vector<float>> get_xq_j_quantities(Grid &grid, std::vector<float> x_p);               // DELETE?
 std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, float dx, float density); // CHECK

@@ -67,6 +67,7 @@ class Cell
 {
 public:
     Cell(float p, std::vector<float> vel);
+    // General constructor
 
     // constructor for unmoving boundary cell
     Cell(float p);
@@ -77,15 +78,24 @@ public:
     std::vector<std::vector<float>> getVelocities();
 
     // getters
-    float get_velocity();
+    float getVelocity();
+    float getDensity();
     cellType getLabel();
 
-    float p();  // p_i,j
-    float &u(); // u_(i-1/2,j)
-    float &v(); // u_(i,j-1/2)
+    // setters
+    void setVelocity(float v);
+    void setDensity(float rho);
+    void setLabel(cellType cType);
+
+    float p();    // p_i,j
+    float &u();   // u_(i-1/2,j)
+    float &v();   // u_(i,j-1/2)
+    float &u_1(); // u_(i+1/2,j)
+    float &v_1(); // u_(i,j+1/2)
 
 private:
     float pressure;
+    float density;
     std::vector<std::vector<float>> velocities;
     int rId;
     int cId;
@@ -93,19 +103,14 @@ private:
     // shader - vertex and fragment
     // adjust opacity or create gradient basedd on velocity in shader
 
-    void update_v(std::vector<float> &u_a, float dt, std::vector<float> g_vec) // g_vec is gravity
-    {
-        // cannot treat g_vec as a scalar
-        u_a + scalar_mult(u_a, g_vec);
-    }
-
+    void update_v(std::vector<float> &u_a, float dt, std::vector<float> g_vec);
     cellType label;
 
     enum cellType
     {
-        FLUID : 1,
-        SOLID : 2,
-        AIR : 3
+        FLUID = 1,
+        SOLID = 2,
+        AIR = 3
     };
 }
 
