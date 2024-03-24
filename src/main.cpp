@@ -19,11 +19,6 @@ CFL/timestep
 // glad must be included before GLFW
 using namespace std;
 
-void marker_and_cell(int n)
-{
-    // Screen reoslution (Windows): https://cplusplus.com/forum/unices/108795/
-}
-
 void framebuffer_size_callback(GLFWwindow *window, int width, int height)
 {
     glViewport(0, 0, width, height);

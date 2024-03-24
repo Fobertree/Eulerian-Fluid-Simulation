@@ -1,7 +1,9 @@
 #include "functions.h"
 #include <cmath>
 
-extern std::vector<std::vector<Cell>> Grid;
+extern std::vector<std::vector<Cell>> cellGrid;
+extern Grid grid;
+extern dx;
 
 // define all declared functions
 
@@ -20,10 +22,37 @@ float second_rk(std::vector<float> x_g, std::vector u_g, float dt)
     return x_p;
 }
 
-std::vector<float> project(float dt, float u_vec) // make u divergence-free, enforce solid-wall boundary
+std::vector<float> project(float dt, Cell cell) // make u divergence-free, enforce solid-wall boundary
 {
+    // u_vec
+    // 77
+    // Ap = b, where b consists of the negative divergences of the fluid cell
+    // both p and b must be stored in 2D or 3D cell, since they hold the values for all the cells
     // calculate negative divergence b
-    // set A
+    // setup A
+    static vvf b;
+    // update b
+
+    for (int i = 0; i < b.size(); i++)
+    {
+        for (int j = 0; j < b[0].size();j++)
+        {
+            // rewrite rhs to work around Cell Object
+            b[i][j] = rhs(cellGrid[i][j]);
+        }
+    }
+
+    vvf A = setupA(&grid, dt, density);
+    // get MIC(0) preconditioner
+    vvf precon = getPreconditioner(&grid);
+    applyPreconditioner();
+
+    // Perform PCG
+    p = pcg(A,b,&grid);
+
+    // return pressure gradient, which is mapped onto velocity field
+    // this preserves incompressibility
+    // can make this void then map inside the function
 }
 
 // multiply a vector by a scalar
@@ -114,7 +143,7 @@ std::vector vec_subtract(std::vector<float> vec1, std::vector<float> vec2)
     if (vec1.size() != vec2.size() && vec1.size != 2)
     {
         printf("Encountering error in vec_subtract: vec1 size: %i, vec2 size: %i", vec1.size(), vec2.size());
-        std::runtime_error("Invlid vector size for vector subtraction.")
+        std::runtime_error("Invalid vector size for vector subtraction.")
     }
     std::vector<float> res = {vec1[0] - vec2[0], vec1[1] - vec2[1]};
     return res;
@@ -124,7 +153,7 @@ float linear_interpolate(std::vector<float> x_p, float dx, std::vector<std::vect
 {
     // x_p is old point
     // aren't x positions supposed to be a vector?
-    // revisit how to calc alpha this doesn't make sense. I think substracting position = pythagorean/eucliean norm
+    // revisit how to calc alpha this doesn't make sense. I think subtracting position = pythagorean/euclidean norm
     // q_j, q_j1 come from boundaries of cell
     /*
     Create a function to get x_j, x_j+1, q_j, q_j+1
@@ -163,7 +192,7 @@ float dot_product(std::vector<float> v1, std::vector<float> v2)
     float res{0};
     int length{v1.size()};
 
-    // seems replacable by std::inner_product
+    // seems replaceable by std::inner_product
 
     for (int i = 0; i < length; i++)
     {
@@ -178,7 +207,7 @@ float vectorNorm(std::vector<float> vec)
     // Euclidean norm
     int res{0};
 
-    for (&i : vec)
+    for (auto &i : vec)
     {
         res += pow(i, 2);
     }
@@ -197,7 +226,6 @@ void applyPreconditioner(std::vector<std::vector<float>> precon, std::vector<flo
     std::vector<std::vector<float>> q(ny, std::vector<float>(nx, 0));
 
     // optimization: put i on inner-loop because of how memory is arranged
-    std::vector<float> jfkd;
     for (int j = 1; j <= ny; j++)
     {
         for (int i = 1; i <= nx; i++)
@@ -292,17 +320,19 @@ float updateVelocity(Grid &grid, float dt, float density, float dx)
             }
             else
             {
-                // mark as unknwon
+                // mark as unknown
                 v(i, j) = {NULL, NULL};
             }
         }
     }
 }
 
-float rhs(float dt, float density, float dx, float p_next, float p_low)
+float rhs(Cell cell)
 {
-    // I think this might be wrong. See 5.3
-    return (dt / density) * ((p_next - p_low) / dx);
+    // returns singular rhs float for respective cell
+    static float scale = 1/static_cast<float>(dx);
+    // check if cell is on the edge
+    return (-scale * *(u_1()) - *(u()) + *(v_1()) + (v()))
 }
 
 std::vector<std::vector<float>> setupA(std::vector<std::vector<Cell>> &grid, float dx, float density)
@@ -443,13 +473,14 @@ std::vector<std::vector<float>> fowardSub(std::vector<std::vector> A, std::vecto
 std::vector<float> pcg(std::vector<std::vector<float>> A, std::vector<float> r, Grid &grid)
 {
     // Ap = b, where b is r
-    // optimize with BLAS. This should be the most time consuming task.
+    // optimize with BLAS. This should be the most time-consuming task.
     const static int maxItr = 50;
-    const static int tol = 10 * *-3;
+    const static int tol = std::pow(10,-3);
 
     std::vector<float> p(A[0].size(), 0);
 
-    bool zeros = std::all_of(v.begin(), v.end(), [](int i)
+    // check if r is all zeros
+    bool zeros = std::all_of(r.begin(), r.end(), [](int i)
                              { return i == 0; });
     if (zeros)
     {
