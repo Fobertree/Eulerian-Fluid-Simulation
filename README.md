@@ -8,7 +8,7 @@ We are motivated by two equations (Navier-Stokes)
 
 - $\nabla \bullet \vec{u}=0$ (incompressibility condition)
   - Can be thought of in terms of conservation of mass/Newton's First Law.
-- $\frac{D\vec{u}}{Dt} = -\frac{1}{p}\nabla p+\vec{g} + v\nabla \bullet \nabla \vec{u}$
+- $\frac{D\vec{u}}{Dt} = -\frac{1}{\rho}\nabla p+\vec{g} + v\nabla \bullet \nabla \vec{u}$
   - Can be thought of in terms of $\sum F=ma$
 
 In this simulation, I drop viscosity, meaning I am using the Euler equations instead.
