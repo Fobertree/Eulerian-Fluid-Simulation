@@ -1,27 +1,42 @@
-#include "glad/glad.h"
-#include <GLFW/glfw3.h>
+#define DATA(vec) &vec.front()
+#define SIZE_F sizeof(float)
+#define SIZE_VF(vec) (vec.size() * SIZE_F)
+#define SIZE_U_INT sizeof(unsigned int)
+#define SIZE_V_UINT(vec) (vec.size() * SIZE_U_INT)
+#define PRINT(x) std::cout << x << std::endl
+
+
+// OpenGL-related includes
+#include <glad/glad.h>
+#include <glfw/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include "shader.h"
+
+// STL
 #include <iostream>
-#include <cmath>
-#include "cell.h"
 #include <vector>
-#include "functions.h"
+#include <string>
 
-/*
-- TO-DO (in main)
+// debugging
+#include <filesystem>
 
-Compute shader
-Grid setup
-CFL/timestep
-    - set initial guess for timestep
-    - if CFL condition violated, change CFL number and timestep
-*/
+// other
+#include <gridgl.h>
 
-// glad must be included before GLFW
-using namespace std;
+bool fileExists(const char* fileName)
+{
+    std::ifstream test(fileName);
+    if (test) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height)
 {
-    glViewport(0, 0, width, height);
+    glViewport(0,0,width,height);
 }
 
 void processInput(GLFWwindow *window)
@@ -32,175 +47,111 @@ void processInput(GLFWwindow *window)
     }
 }
 
+constexpr int width{800}, height{600}, grid_width{100}, grid_height{100}, stride{3};
+
 int main()
 {
-    double tol{0.03};
-
-    // glfw initialize and configure
-    unordered_map < int, std::vector<float> shapes;
-
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
-    // create glfw window
-    GLFWwindow *window = glfwCreateWindow(800, 600, "learnopengl", NULL, NULL);
+    GLFWwindow  *window = glfwCreateWindow(width,height, "grid", NULL,NULL);
 
     if (window == NULL)
     {
         std::cout << "Failed to create new window" << std::endl;
         glfwTerminate();
-        return -1;
+        exit(1);
     }
+
     glfwMakeContextCurrent(window);
 
-    // glad: load all OpenGL function pointers
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
 
-    glViewport(0, 0, 800, 600);
+    glViewport(0,0,width,height);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    // callback called everytime window is resized
+    // Setup grid
+    Grid grid = Grid(grid_width,grid_height,width,height);
+    std::vector<float> vertices = grid.getVertices();
+    std::vector<unsigned int> ebo_indices = grid.getEBO();
 
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback); // set callback to execute everytime window is resized
-
-    float vertices[] = {
-        // 1st rectangle
-        -0.5f, -0.5f, 0.0f,
-        0.5f, -0.5f, 0.0f,
-        -0.5f, 0.5f, 0.0f,
-        // 2nd triangle
-        0.5f, 0.5f, 0.0f};
-
-    // vertex buffer object: stores vertices in GPU memory
-    unsigned int VBO;
-    glGenBuffers(1, &VBO); // generate object w/ buffer ID
-
-    // 0. copy vertices array in a buffer for OpenGL to use
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    /*
-    GL_STREAM_DRAW: the data is set only once and used by the GPU at most a few times.
-    GL_STATIC_DRAW: the data is set only once and used many times.
-    GL_DYNAMIC_DRAW: the data is changed a lot and used many times.
-    */
-
-    const GLchar *vertexShaderSource =
-        R"(#version 330 core
-           layout (location = 0) in vec3 aPos;
-           
-           void main()
-           {
-            gl_Position = vec4(aPos.x,aPos.y,aPos.z,1.0);
-           };
-           )";
-    unsigned int vertexShader;
-    vertexShader = glCreateShader(GL_VERTEX_SHADER);
-
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-
-    // check if compilation is successful
-    int success;
-    char infoLog[512];
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-
-    if (!success)
+    if (vertices.empty())
     {
-        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n"
-                  << infoLog << std::endl;
+        std::cout << "ERROR WITH EMPTY VERTICES" << std::endl;
+        exit(1);
     }
 
-    // fragment shader
-    const GLchar *fragmentShaderSource =
-        R"(#version 330 core 
-         out vec4 FragColor;
-         uniform vec4 ourColor;
-         
-         void main()
-         {
-            FragColor = ourColor;
-         })";
+    PRINT("VERTICES SIZE: " << vertices.size());
 
-    unsigned int fragmentShader;
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
+    // -- shaders --
+    PRINT(std::filesystem::current_path());
+    PRINT("Vertex path check: " << std::boolalpha << fileExists("../src/Shaders/vs1.vert"));
+    PRINT("Frag path check: " << fileExists("../src/Shaders/borders.frag"));
+    Shader boxShader = Shader("../src/Shaders/vs1.vert", "../src/Shaders/borders.frag");
+    boxShader.use();
 
-    // create program object
-    unsigned int shaderProgram;
-    shaderProgram = glCreateProgram();
+    glDisable(GL_DEPTH_TEST);
 
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
+    // -- VBO, VAO, EBO --
+    unsigned int VBO, VAO, EBO;
 
-    // check if compilation is successful
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success)
-    {
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-    };
-
-    unsigned int VAO;
+    PRINT("VBO OK");
+    //VAO
     glGenVertexArrays(1, &VAO);
-    // 1. bind Vertex Array Object
     glBindVertexArray(VAO);
-    // 2. copy vertices array in a buffer for OpenGL to use
-    glBindBuffer(GL_ARRAY_BUFFER, VBO); // vertex buffer object. MUST BE VBO OR MEMORY LEAK
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    /*
-    GL_STREAM_DRAW: the data is set only once and used by the GPU at most a few times.
-    GL_STATIC_DRAW: the data is set only once and used many times.
-    GL_DYNAMIC_DRAW: the data is changed a lot and used many times.
-    */
-    // 3. then set the vertex attributes pointers
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+
+    // VBO
+    glGenBuffers(1, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, SIZE_VF(vertices), DATA(vertices), GL_STATIC_DRAW);
+
+    PRINT("VAO OK");
+    //EBO
+    glGenBuffers(1, &EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, SIZE_V_UINT(ebo_indices), DATA(ebo_indices),GL_STATIC_DRAW);
+
+    PRINT("EBO OK");
+
+    // VAO: enable vertex attributes
+
+    // position attributes
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,stride*SIZE_F,(void*) 0);
     glEnableVertexAttribArray(0);
 
-    /*
-    Max number of vertex attributes supported: 16
-
-    int nrAttributes;
-    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &nrAttributes);
-    std::cout << "Maximum nr of vertex attributes supported: " << nrAttributes << std::endl;
-    */
+    // set cell size uniform in fragment shader
+    PRINT("norm height::" << grid.getNormHeight());
+    PRINT("norm widgth::" << grid.getNormWidth());
+    glm::vec2 cell = glm::vec2(grid.getNormWidth(), grid.getNormHeight());
+    GLuint cell_size_unif = glGetUniformLocation(boxShader.ID, "cell_size");
+    glUniform2fv(cell_size_unif, 1, glm::value_ptr(cell));
 
     while (!glfwWindowShouldClose(window))
     {
-        // process input
         processInput(window);
+        GLenum err;
+        while ((err = glGetError()) != GL_NO_ERROR) {
+            std::cout << "OpenGL error: " << err << std::endl;
+        }
 
-        // rendering commands here
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        // background color
+        glClearColor(0.2f,0.3f,0.3f,1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(shaderProgram);
+        glDrawElements(GL_TRIANGLES,SIZE_V_UINT(ebo_indices), GL_UNSIGNED_INT, 0);
 
-        float timeValue = glfwGetTime();
-        float greenValue = sin(timeValue) / 2.0f + 0.5f;
-        int vertexColorLocation = glGetUniformLocation(shaderProgram, "ourColor");
-        glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);
 
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-
-        // check and call events and swap buffers (update window)
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
 
-    glfwTerminate();
     return 0;
 }
-
-// https://learnopengl.com/Getting-started/Hello-Window
-// https://learnopengl.com/Getting-started/Hello-Triangle
-// https://learnopengl.com/Getting-started/Shaders
-// https://stackoverflow.com/questions/16157088/forward-substitution-of-lower-triangular-matrix-how
-// g++ main.cpp glad.c -o main -I../include -I../include/glad -I../include/GLFW -L../src -lglfw3
-// g++ main.cpp glad.c -o main -I../include -I../include/glad -I../include/GLFW -L../src -lglfw3 --I../include/cell -I../include/particle

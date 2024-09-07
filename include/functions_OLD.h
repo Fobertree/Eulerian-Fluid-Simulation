@@ -4,7 +4,7 @@ typedef std ::vector<std::vector<float>> vvf;
 typedef std ::vector<float> vf;
 
 #include <vector>
-#include "grid.h"
+#include "grid_OLD.h"
 
 // declare all functions
 float second_rk(std::vector<float> x_g, std::vector u_g, float dt); // 2nd order Runge-Kutta

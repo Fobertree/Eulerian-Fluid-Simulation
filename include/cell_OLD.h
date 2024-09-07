@@ -2,7 +2,7 @@
 #define CELL_H
 
 #include <vector>
-#include "include/partial.h"
+#include "include/partial_OLD.h"
 
 // https://stackoverflow.com/questions/7304511/partial-derivatives
 // https://stackoverflow.com/questions/270408/is-it-better-in-c-to-pass-by-value-or-pass-by-reference-to-const

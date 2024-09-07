@@ -1,4 +1,4 @@
-#include "functions.h"
+#include "functions_OLD.h"
 #include <cmath>
 
 extern std::vector<std::vector<Cell>> cellGrid;
