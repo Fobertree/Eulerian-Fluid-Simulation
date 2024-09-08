@@ -2,7 +2,7 @@
 // Created by Alexa on 8/31/2024.
 //
 
-// honestly don't even think this grid gen is necessary for our Fluid Sim but I'll see later
+// this grid is not necessary, we can just do width 1, height 1
 
 #ifndef GRID_GRID_H
 #define GRID_GRID_H

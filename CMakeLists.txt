@@ -10,12 +10,14 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
 
 add_executable(Grid
         src/main.cpp
         include/shader.h
         src/main.cpp
         include/gridgl.h
+        include/fluid_math.h
 )
 
 
@@ -24,3 +26,4 @@ target_link_libraries(Grid PRIVATE OpenGL::GL)
 target_link_libraries(Grid PRIVATE glm::glm)
 target_link_libraries(Grid PRIVATE glfw)
 target_link_libraries(Grid PRIVATE glad::glad)
+target_link_libraries(Grid PRIVATE Eigen3::Eigen)

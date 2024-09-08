@@ -1,4 +1,4 @@
-# Eulerian Fluid Simulation
+# Eulerian (Inviscid) Fluid Simulation
 
 Currently rewriting from scratch.
 
