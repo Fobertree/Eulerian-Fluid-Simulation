@@ -9,13 +9,14 @@
 //#include <Eigen/Dense>
 
 #include <utility> //pair
+#include <cmath> //floor, ceil
 
 typedef Eigen::Vector2d vec2;
-typedef Eigen::MatrixX2d mat2;
+//typedef Eigen::MatrixX2d mat2;
 typedef Eigen::MatrixX<double> mat_d;
-typedef std::pair<int,int> pii;
-typedef std::pair<double, double> pdd;
-typedef std::pair<float,float> pff;
+//typedef std::pair<int,int> pii;
+//typedef std::pair<double, double> pdd;
+//typedef std::pair<float,float> pff;
 
 // Control backend
 /*
@@ -46,7 +47,10 @@ public:
         // stagger pressures due to MAC setup
         pressures = mat_d (r_size+1, c_size+1);
         // r, c -> [(r,c),(r,c+1), (r+1,c), (r+1,c+1)]
-        velocities = mat_d (r_size, c_size);
+        velo_x = mat_d (r_size+1, c_size);
+        velo_x = mat_d (r_size, c_size+1);
+        // dont use eigen for labels
+        //labels = mat_d(r_size,c_size,AIR);
         this->dx = dx;
         rows = r_size, cols = c_size;
     }
@@ -65,15 +69,15 @@ public:
 
         //map_mat(velocities, &MAC::update_gravity);
         // gravity update
-        velocities.unaryExpr([&](double x) { return x + g; });
+        velo_y.unaryExpr([&](double x) { return x + g; });
     }
 
-    double update_gravity(double x)
-    {
-        return x + g;
-    }
+//    void static update_gravity(double& x)
+//    {
+//        x += g;
+//    }
 
-    void map_mat(mat_d& mat, double MAC::*func(double))
+    void static map_mat(mat_d& mat, double MAC::*func(double))
     {
         // generalized map function
         mat.unaryExpr(func);
@@ -81,7 +85,7 @@ public:
     // STEP 3: ADVECTION
     // advect quantity q: velocity,
 
-    pff advect(vec2 ug, float q, vec2 x_start)
+    vec2 advect(const vec2& ug, float q, const vec2& x_start)
     {
         // xg is x_start, or current pos at timestep t
         // we advect backwards to get xp, old pos at timestep t-1
@@ -98,7 +102,7 @@ public:
         u_p = linear_interpolate_u(x_p);
     }
 
-    [[nodiscard]] vec2 advectPos(vec2 u, vec2 pos, double dt = NULL) const {
+    [[nodiscard]] vec2 advectPos(const vec2& u, const vec2& pos, double dt = NULL) const {
         // removed t arg since 'global'
         // below feels spaghetti but default args must be known at compile-time (no non-static)
         // TODO: consider setting ts as static
@@ -109,16 +113,34 @@ public:
 
         return {pos(0) - du(0), pos(1) - du(1)};
     }
-    vec2 linear_interpolate_u(vec2 pos) {
+    vec2 linear_interpolate_u(const vec2& pos) {
         // interpolate velocity
+        // bilinear interpolation for now. Consider cubic for later
         // TODO: do this
         // q^{n+1}_i = (1-\alpha) q_j ^n + \alpha q^n _ {j+1}
-        return {0.f,0.f};
+
+        double a_x, a_y;
+        int i = static_cast<int>(floor(pos(0))),
+            j = static_cast<int>(floor(pos(1)));
+        double u,v;
+
+        // alphas
+        a_x = std::modf(pos(0), nullptr);
+        a_y = std::modf(pos(1), nullptr);
+
+        // interpolate x/u component along x-axis
+        u = (velo_x(i,j) * a_x + velo_x(i,j) * (1.0f-a_x));
+
+        // interpolate y/v component along y=axis, w/ gravity after?
+        v = (velo_y(i,j) * a_y + velo_y(i,j) * (1.0f-a_y)) + g;
+
+        return {u,v};
     }
+    // PART 3: PROJECTION
 private:
     // separating MAC into two grids (pressure, and velocity)
     mat_d pressures;
-    mat_d velocities;
+    mat_d velo_x, velo_y, labels;
     double u_max{0}, dx, ts{1};
     // TODO: make sure glgrid is constrained to squares not just any rectangle. Honestly, this is probably just a GLSL thing
     //double dx;
@@ -126,6 +148,11 @@ private:
 
     size_t rows, cols;
 };
+
+// up: v[i][j+1];
+// down: v[i][j];
+// left: u[i][j];
+// right: u[i+1][j];
 
 
 void project(float dt, vec2 u);

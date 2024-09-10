@@ -1,5 +1,7 @@
 # Eulerian (Inviscid) Fluid Simulation
 
+http://plaza.ufl.edu/ebrackear/
+
 Currently rewriting from scratch.
 
 ## Basics/Motivation
