@@ -10,8 +10,10 @@
 
 #include <utility> //pair
 #include <cmath> //floor, ceil
+#include <iostream>
 
 typedef Eigen::Vector2d vec2;
+typedef Eigen::VectorXd vec_d;
 //typedef Eigen::MatrixX2d mat2;
 typedef Eigen::MatrixX<double> mat_d;
 //typedef std::pair<int,int> pii;
@@ -51,6 +53,8 @@ public:
         velo_x = mat_d (r_size, c_size+1);
         // dont use eigen for labels
         //labels = mat_d(r_size,c_size,AIR);
+        // condense to 1d vec
+        labels = std::vector<CellType>(r_size * c_size, AIR);
         this->dx = dx;
         rows = r_size, cols = c_size;
     }
@@ -64,7 +68,7 @@ public:
     // STEP 2
     void body_force_update()
     {
-        // update with gravity
+        // update velocity with gravity (and external forces)
         // material derivative of u = g
 
         //map_mat(velocities, &MAC::update_gravity);
@@ -100,6 +104,8 @@ public:
         x_p = advectPos(u_mid, x_mid, ts * 0.5);
         // VELOCITY ADVECTION RESULT
         u_p = linear_interpolate_u(x_p);
+
+        return u_p;
     }
 
     [[nodiscard]] vec2 advectPos(const vec2& u, const vec2& pos, double dt = NULL) const {
@@ -137,16 +143,183 @@ public:
         return {u,v};
     }
     // PART 3: PROJECTION
+    void project()
+    {
+        // TODO: main
+        // update pressure values
+        // calculate negative divergence
+        // get preconditioner via modified incomplete cholesky
+        // perform pcg (apply preconditioner)
+    }
+
+    void update_pressure();
+    void negative_divergence();
+    mat_d getPreconditioner(vec_d A)
+    {
+        // Modified Incomplete Cholesky Decomposition Level Zero
+        // TODO: Do this
+    }
+    void mod_incomp_cholesky()
+    {
+        // A: symmetric positive semi-definite
+        // A is not necessarily the same dimension as fluid grid (def not if grid isn't square)
+        // get preconditioner
+        mat_d precon(cols, rows);
+
+        double e;
+        // 5.7
+        for (int i =1; i < rows; i++)
+        {
+            for (int j = 1; j < cols; j++)
+            {
+                if (labels.at(i * cols + j) == FLUID)
+                {
+                    // TODO: preconditioner creation. getPreconditioner
+                }
+            }
+        }
+    }
+    vec_d pcg(const mat_d& precon, vec_d& b)
+    {
+        int vec_size = static_cast<int>(rows * cols);
+        mat_d A(vec_size,vec_size);
+        // TODO: Set M to preconditioner
+        mat_d M;
+        vec_d p(vec_size), r(vec_size), z(vec_size), s(vec_size);
+        // sigma: normalizing scalar
+        // alpha: CG step size
+        double sigma{0.f}, alpha{0.f}, sigma_new{0.f};
+        int iters{0}; // for maximum iteration break
+
+        // p = 0
+        p.fill(0);
+        // see if we can move instead of copy
+        r = b.row(0); // r = b
+        s = z.row(0); // s = z
+
+        sigma = z.dot(r);
+
+        while (iters++ < _max_pcg_iter && !test_tol(A, p,b))
+        {
+            z = A * s;
+            alpha = sigma / z.dot(s);
+
+            p = p + alpha * s;
+            r = r - alpha * z;
+
+            if (inf_norm(r) <= tol)
+            {
+                return p;
+            }
+
+            z = M * r;
+            sigma_new = z.dot(r);
+            s = z + (sigma_new / sigma) * s;
+            sigma = sigma_new;
+        }
+
+        if (iters > _max_pcg_iter)
+        {
+            std::cerr << "WARNING::EXCEEDED ITERATION LIMIT ON PCG\n";
+        }
+
+        return p;
+    }
+
+    void pressure_gradient_update()
+    {
+        // TODO: Pressure update. Handle solid boundary conditions
+        double scale{ts * inv_rho / dx};
+
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
+                // update u
+                if ((labels[(i-1) * rows + j] == FLUID) || labels[i * rows + j] == FLUID)
+                {
+                    if (labels[(i-1) * rows + j] == SOLID || labels[i*rows + j] == SOLID)
+                    {
+                        // u(i,j) = usolid(i,j);
+                    }
+                    else
+                    {
+                        velo_x(i,j) -= scale * (pressures(i,j) - pressures(i-1,j));
+                    }
+                }
+                else
+                {
+                    velo_x(i,j) = -1.0f; //marking unknown
+                }
+
+                // update v
+                if ((labels[i * rows + j-1] == FLUID) || labels[i * rows + j] == FLUID)
+                {
+                    if (labels[i * rows + j-1] == SOLID || labels[i*rows + j] == SOLID)
+                    {
+                        // u(i,j) = usolid(i,j);
+                    }
+                    else
+                    {
+                        velo_y(i,j) -= scale * (pressures(i,j) - pressures(i,j-1));
+                    }
+                }
+                else
+                {
+                    velo_y(i,j) = -1.0f; //marking unknown
+                }
+            }
+        }
+    }
+
+    void get_pressure(int r, int c)
+    {
+        // TODO: get pressure based on coord
+    }
+
+    bool test_tol(const mat_d& A, const vec_d& p, const vec_d& b)
+    {
+        // If continue PCG iterations: returns false. If done, returns true.
+        double norm_r = inf_norm(A * p);
+        return norm_r <= tol * inf_norm(b);
+    }
+
+    template<typename T = vec_d>
+    double inf_norm(const T& v)
+    {
+        return v.maxCoeff();
+    }
+
+    mat_d applyPrecon(mat_d precon)
+    {
+        float t;
+        // TODO: precon implementation, bounds + dimension checking
+        for (int i = 1; i < rows; i++)
+        {
+            for (int j = 1; j < cols; j++)
+            {
+                if (labels[i * rows + j] == FLUID)
+                {
+
+                }
+            }
+        }
+    }
 private:
     // separating MAC into two grids (pressure, and velocity)
     mat_d pressures;
-    mat_d velo_x, velo_y, labels;
-    double u_max{0}, dx, ts{1};
+    mat_d velo_x, velo_y, v_solid_x, v_solid_y;
+    std::vector<CellType > labels;
+    double u_max{0}, dx{0.f}, ts{1};
     // TODO: make sure glgrid is constrained to squares not just any rectangle. Honestly, this is probably just a GLSL thing
     //double dx;
     int CFL_num{5}; // C or \alpha
+    static constexpr int _max_pcg_iter{500};
+    static constexpr float chol_tune_tau{0.97}, chol_safety_sig{0.25}, rho{0.5};
+    static constexpr float tol{10e-6f};
+    static constexpr double inv_rho {1/rho};
 
-    size_t rows, cols;
+    size_t rows, cols; // rows must equal cols
 };
 
 // up: v[i][j+1];
