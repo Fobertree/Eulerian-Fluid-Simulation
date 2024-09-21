@@ -9,7 +9,7 @@
 //#include <Eigen/Dense>
 
 #include <utility> //pair
-#include <cmath> //floor, ceil
+#include <cmath> //floor, ceil, pow
 #include <iostream>
 
 typedef Eigen::Vector2d vec2;
@@ -37,6 +37,24 @@ typedef enum CellType
     SOLID
 } CellType;
 
+// cant tell if im a genius or stupid
+template <typename T = double>
+struct dataStruct {
+    size_t r_size{0}, c_size{0};
+    std::vector<T> data = std::vector<T>();
+    // setter
+    T& operator() (int i, int j) {
+        return &data.at(i * r_size + j);
+    }
+
+    void setData(const std::vector<T>& new_data)
+    {
+        data = std::move(new_data);
+    }
+};
+
+typedef dataStruct<CellType> labelVec;
+
 auto grav = [](double x) { return x + g; };
 // velocity field
 
@@ -46,17 +64,23 @@ class MAC
 public:
     MAC(size_t r_size, size_t c_size, double dx)
     {
+        rows = r_size, cols = c_size;
+        size_t rc{r_size * c_size};
         // stagger pressures due to MAC setup
         pressures = mat_d (r_size+1, c_size+1);
         // r, c -> [(r,c),(r,c+1), (r+1,c), (r+1,c+1)]
         velo_x = mat_d (r_size+1, c_size);
         velo_x = mat_d (r_size, c_size+1);
-        // dont use eigen for labels
-        //labels = mat_d(r_size,c_size,AIR);
-        // condense to 1d vec
+
+        // allocate size for A matrix
+        Adiag = mat_d(rc, rc);
+        Ax = mat_d(rc,rc);
+        Ay = mat_d(rc,rc);
+
+        // condense to 1d vec. Can revert if we find it better
+        // overloading () for indexing sounds stupid
         labels = std::vector<CellType>(r_size * c_size, AIR);
         this->dx = dx;
-        rows = r_size, cols = c_size;
     }
     // STEP 1
     void update_ts()
@@ -143,10 +167,10 @@ public:
         return {u,v};
     }
     // PART 3: PROJECTION
-    void project()
+    void project(float dt, vec2& u)
     {
-        // TODO: main
-        // update pressure values
+        // TODO: main for project routine
+        // update pressure values (including solids bounds check)
         // calculate negative divergence
         // get preconditioner via modified incomplete cholesky
         // perform pcg (apply preconditioner)
@@ -154,32 +178,99 @@ public:
 
     void update_pressure();
     void negative_divergence();
-    mat_d getPreconditioner(vec_d A)
+    void setupA()
     {
-        // Modified Incomplete Cholesky Decomposition Level Zero
-        // TODO: Do this
-    }
-    void mod_incomp_cholesky()
-    {
-        // A: symmetric positive semi-definite
-        // A is not necessarily the same dimension as fluid grid (def not if grid isn't square)
-        // get preconditioner
-        mat_d precon(cols, rows);
+        // setup Ax, Ay, Adiag
+        double scale = ts/(rho * dx * dx);
+        size_t rs{rows * cols};
 
-        double e;
-        // 5.7
-        for (int i =1; i < rows; i++)
+        // not sure if I need to reset to 0 every timestep
+        Adiag.fill(0);
+        Ax.fill(0);
+        Ay.fill(0);
+
+        for (int i = 0; i < rs; i++)
         {
-            for (int j = 1; j < cols; j++)
+            // symmetric matrix, so only need to compute triangular
+            for (int j = 0; j < i; j++)
             {
-                if (labels.at(i * cols + j) == FLUID)
+                if (labels[i * rows + j] == FLUID)
                 {
-                    // TODO: preconditioner creation. getPreconditioner
+                    // X DIRECTION
+
+                    // handle negative x neighbor
+                    if (labels[(i-1) * rows + j] == FLUID)
+                    {
+                        Adiag(i,j) += scale;
+                    }
+                    // handle positive x neighbor
+                    if (labels[(i+1) * rows + j] == FLUID)
+                    {
+                        Adiag(i,j) += scale;
+                        Ax(i,j) = -scale;
+                    }
+                    else if (labels[(i+1) * rows + cols] == AIR)
+                    {
+                        Adiag(i,j) += scale;
+                    }
+
+                    // Y DIRECTION
+
+                    // handle negative y neighbor
+                    if (labels[i * rows + j-1] == FLUID)
+                    {
+                        Adiag(i,j) += scale;
+                    }
+                    // handle positive y neighbor
+                    if (labels[i * rows + j+1] == FLUID)
+                    {
+                        Adiag(i,j) += scale;
+                        Ay(i,j) = -scale;
+                    }
+                    else if (labels[(i+1) * rows + cols] == AIR)
+                    {
+                        Adiag(i,j) += scale;
+                    }
                 }
             }
         }
     }
-    vec_d pcg(const mat_d& precon, vec_d& b)
+    // ???????????????? wtf am i doing
+    std::unique_ptr<mat_d> getPreconditioner()
+    {
+        // Modified Incomplete Cholesky Decomposition Level Zero
+        // Create preconditioner here
+        // TODO: Check this
+
+        mat_d precon = mat_d(rows,cols);
+        setupA();
+        double e;
+        // tau is split between mic and ic
+
+        for (int i = 1; i < rows; i++)
+        {
+            for (int j=1; j < cols; j++)
+            {
+                if (labels.at(i * rows + j) == FLUID)
+                {
+                    e = Adiag(i,j) - pow(Ax(i-1,j) * precon(i-1,j), 2)
+                            - pow((Ay(i,j-1) * precon(i,j-1)), 2)
+                            - chol_tune_tau * (Ax(i-1,j) * (Ay(i-1,j)) * pow(precon(i-1,j),2)
+                            +Ay(i,j-1)
+                            * (Ax(i,j-1)) * pow(precon(i,j-1),2));
+
+                    // Incomplete cholesky: ensure sparsity
+                    if (e < chol_safety_sig)
+                        e = Adiag(i,j);
+
+                    precon(i,j) = 1/ sqrt(e);
+                }
+            }
+        }
+        return std::make_unique<mat_d>(precon);
+    }
+
+    std::unique_ptr<vec_d> pcg(const mat_d& precon, const vec_d& b)
     {
         int vec_size = static_cast<int>(rows * cols);
         mat_d A(vec_size,vec_size);
@@ -209,7 +300,7 @@ public:
 
             if (inf_norm(r) <= tol)
             {
-                return p;
+                return std::make_unique<vec_d> (p);
             }
 
             z = M * r;
@@ -220,10 +311,15 @@ public:
 
         if (iters > _max_pcg_iter)
         {
-            std::cerr << "WARNING::EXCEEDED ITERATION LIMIT ON PCG\n";
+            std::cerr << "WARNING::EXCEEDED ITERATION LIMIT ON PCG" << std::endl;
+        }
+        else
+        {
+            std::cout << "PCG Iterations: " << iters <<"\n";
         }
 
-        return p;
+        // TODO: fix issue where p goes out of scope. Unique_ptr?
+        return std::make_unique<vec_d>(p);
     }
 
     void pressure_gradient_update()
@@ -290,7 +386,7 @@ public:
         return v.maxCoeff();
     }
 
-    mat_d applyPrecon(mat_d precon)
+    mat_d applyPrecon(mat_d& precon)
     {
         float t;
         // TODO: precon implementation, bounds + dimension checking
@@ -307,14 +403,17 @@ public:
     }
 private:
     // separating MAC into two grids (pressure, and velocity)
+    // coefficient matrices for Ap=b
+    mat_d Ax, Ay, Adiag;
     mat_d pressures;
     mat_d velo_x, velo_y, v_solid_x, v_solid_y;
+    // consider slapping labels into a struct with () operator override for readability
     std::vector<CellType > labels;
     double u_max{0}, dx{0.f}, ts{1};
     // TODO: make sure glgrid is constrained to squares not just any rectangle. Honestly, this is probably just a GLSL thing
     //double dx;
     int CFL_num{5}; // C or \alpha
-    static constexpr int _max_pcg_iter{500};
+    static constexpr int _max_pcg_iter{200};
     static constexpr float chol_tune_tau{0.97}, chol_safety_sig{0.25}, rho{0.5};
     static constexpr float tol{10e-6f};
     static constexpr double inv_rho {1/rho};
