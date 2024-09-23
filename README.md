@@ -76,3 +76,5 @@ Next Steps
 
 Packages installed via vcpkg:
 - Build, Execution, and Deployment: `-DCMAKE_TOOLCHAIN_FILE={vcpkg_path}`
+
+figure out if i want to approach return vals with pure address void, shared_ptr, or unique_ptr

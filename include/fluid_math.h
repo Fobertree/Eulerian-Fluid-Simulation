@@ -37,19 +37,35 @@ typedef enum CellType
     SOLID
 } CellType;
 
-// cant tell if im a genius or stupid
+// for performance of 1d vector vs 2d vector
 template <typename T = double>
 struct dataStruct {
     size_t r_size{0}, c_size{0};
     std::vector<T> data = std::vector<T>();
     // setter
     T& operator() (int i, int j) {
-        return &data.at(i * r_size + j);
+        if (j >= c_size)
+            std::cerr << "DATA STRUCT ERROR::C_SIZE " << c_size << " FAIL ON COL_IDX: " << j << std::endl;
+
+        if (i >= r_size)
+            std::cerr << "DATA STRUCT ERROR::R_SIZE " << r_size << " FAIL ON ROW_IDX: " << i << std::endl;
+
+        return data.at(i * r_size + j);
     }
 
     void setData(const std::vector<T>& new_data)
     {
         data = std::move(new_data);
+    }
+
+    dataStruct<T>()
+    = default;
+
+    dataStruct<T>(const std::vector<T>& new_data, size_t r_size, size_t c_size)
+    {
+        setData(new_data);
+        this->r_size = r_size;
+        this->c_size = c_size;
     }
 };
 
@@ -77,13 +93,23 @@ public:
         Ax = mat_d(rc,rc);
         Ay = mat_d(rc,rc);
 
+        // project matrices
+        precon = mat_d(rc,rc);
+
         // condense to 1d vec. Can revert if we find it better
         // overloading () for indexing sounds stupid
-        labels = std::vector<CellType>(r_size * c_size, AIR);
+        std::vector<CellType> tmp_labels = std::vector<CellType>(rc, AIR);
+        labels = dataStruct<CellType>(tmp_labels, rows, cols);
         this->dx = dx;
+        ts = 1;
+
+        b = vec_d(rc);
+        p = vec_d(rc);
+
+        tmp_labels.clear();
     }
     // STEP 1
-    void update_ts()
+    void update_ts() const
     {
         // CFL condition
         ts = CFL_num * (dx/u_max);
@@ -132,10 +158,7 @@ public:
         return u_p;
     }
 
-    [[nodiscard]] vec2 advectPos(const vec2& u, const vec2& pos, double dt = NULL) const {
-        // removed t arg since 'global'
-        // below feels spaghetti but default args must be known at compile-time (no non-static)
-        // TODO: consider setting ts as static
+    [[nodiscard]] static vec2 advectPos(const vec2& u, const vec2& pos, double dt = NULL) {
         if (dt == NULL)
             dt = ts;
 
@@ -145,8 +168,7 @@ public:
     }
     vec2 linear_interpolate_u(const vec2& pos) {
         // interpolate velocity
-        // bilinear interpolation for now. Consider cubic for later
-        // TODO: do this
+        // bi-linear interpolation for now. Consider cubic for later
         // q^{n+1}_i = (1-\alpha) q_j ^n + \alpha q^n _ {j+1}
 
         double a_x, a_y;
@@ -170,10 +192,16 @@ public:
     void project(float dt, vec2& u)
     {
         // TODO: main for project routine
-        // update pressure values (including solids bounds check)
-        // calculate negative divergence
+        // TODO: update pressure values (including solids bounds check)
+        pressure_gradient_update();
+        // TODO: calculate negative divergence
+
         // get preconditioner via modified incomplete cholesky
-        // perform pcg (apply preconditioner)
+        // Do MIC(0) for now, look into domain decomposition for 3D parallel solves
+        //getPreconditioner();
+        // perform pcg (setup A, apply preconditioner): Ap = b
+        pcg();
+        // TODO: compute new velocities with pressure-gradient update
     }
 
     void update_pressure();
@@ -194,22 +222,22 @@ public:
             // symmetric matrix, so only need to compute triangular
             for (int j = 0; j < i; j++)
             {
-                if (labels[i * rows + j] == FLUID)
+                if (labels(i,j) == FLUID)
                 {
                     // X DIRECTION
 
                     // handle negative x neighbor
-                    if (labels[(i-1) * rows + j] == FLUID)
+                    if (labels(i-1, j) == FLUID)
                     {
                         Adiag(i,j) += scale;
                     }
                     // handle positive x neighbor
-                    if (labels[(i+1) * rows + j] == FLUID)
+                    if (labels(i+1, j) == FLUID)
                     {
                         Adiag(i,j) += scale;
                         Ax(i,j) = -scale;
                     }
-                    else if (labels[(i+1) * rows + cols] == AIR)
+                    else if (labels(i+1, j) == AIR)
                     {
                         Adiag(i,j) += scale;
                     }
@@ -217,17 +245,17 @@ public:
                     // Y DIRECTION
 
                     // handle negative y neighbor
-                    if (labels[i * rows + j-1] == FLUID)
+                    if (labels(i, j-1) == FLUID)
                     {
                         Adiag(i,j) += scale;
                     }
                     // handle positive y neighbor
-                    if (labels[i * rows + j+1] == FLUID)
+                    if (labels(i, j+1) == FLUID)
                     {
                         Adiag(i,j) += scale;
                         Ay(i,j) = -scale;
                     }
-                    else if (labels[(i+1) * rows + cols] == AIR)
+                    else if (labels(i+1, j) == AIR)
                     {
                         Adiag(i,j) += scale;
                     }
@@ -235,14 +263,12 @@ public:
             }
         }
     }
-    // ???????????????? wtf am i doing
-    std::unique_ptr<mat_d> getPreconditioner()
+
+    void getPreconditioner()
     {
         // Modified Incomplete Cholesky Decomposition Level Zero
         // Create preconditioner here
         // TODO: Check this
-
-        mat_d precon = mat_d(rows,cols);
         setupA();
         double e;
         // tau is split between mic and ic
@@ -251,7 +277,7 @@ public:
         {
             for (int j=1; j < cols; j++)
             {
-                if (labels.at(i * rows + j) == FLUID)
+                if (labels(i,j) == FLUID)
                 {
                     e = Adiag(i,j) - pow(Ax(i-1,j) * precon(i-1,j), 2)
                             - pow((Ay(i,j-1) * precon(i,j-1)), 2)
@@ -267,18 +293,62 @@ public:
                 }
             }
         }
-        return std::make_unique<mat_d>(precon);
     }
 
-    std::unique_ptr<vec_d> pcg(const mat_d& precon, const vec_d& b)
+    void applyPreconditioner(const vec_d& r, vec_d& z)
+    {
+        // vector z is the result. z = Mr
+
+        // Forward substitution: Lq = r
+        double t; // tmp var
+        //, z(rows * cols)
+        vec_d q(rows * cols);
+        q.fill(0);
+        z.fill(0);
+
+        for (int i = 1; i < rows; i++)
+        {
+            for (int j = 1; j < cols; j++)
+            {
+                if (labels(i,j) == FLUID)
+                {
+                    t = r(i,j) - Ax(i-1,j) * precon(i-1,j) * q(i-1,j)
+                            - Ay(i,j-1) * precon(i,j-1) * q(i,j-1);
+
+                    q(i,j) = t * precon(i,j);
+                }
+            }
+        }
+
+        // Backward Substitution: L^Tz = q
+        for (int i = (int)rows-1; i >=0; i--)
+        {
+            for (int j = (int)cols-1; j >= 0; j--)
+            {
+                if (labels(i,j) == FLUID)
+                {
+                    t = q(i,j) - Ax(i-1,j) * precon(i-1,j) * z(i+1,j)
+                        - Ay(i,j-1) * precon(i,j-1) * q(i,j+1);
+
+                    z(i,j) = t * precon(i,j);
+                }
+            }
+        }
+    }
+
+    void pcg()
     {
         int vec_size = static_cast<int>(rows * cols);
         mat_d A(vec_size,vec_size);
         // TODO: Set M to preconditioner
-        mat_d M;
-        vec_d p(vec_size), r(vec_size), z(vec_size), s(vec_size);
+        // this M stuff is spaghetti. Revisit code structure.
+        mat_d* M = &precon;
+        vec_d r(vec_size), z(vec_size), s(vec_size);
         // sigma: normalizing scalar
         // alpha: CG step size
+
+        // z = Mr
+        applyPreconditioner(b,z);
         double sigma{0.f}, alpha{0.f}, sigma_new{0.f};
         int iters{0}; // for maximum iteration break
 
@@ -290,7 +360,7 @@ public:
 
         sigma = z.dot(r);
 
-        while (iters++ < _max_pcg_iter && !test_tol(A, p,b))
+        while (iters++ < _max_pcg_iter && !test_tol(A))
         {
             z = A * s;
             alpha = sigma / z.dot(s);
@@ -300,10 +370,10 @@ public:
 
             if (inf_norm(r) <= tol)
             {
-                return std::make_unique<vec_d> (p);
+                return;
             }
 
-            z = M * r;
+            z = *M * r;
             sigma_new = z.dot(r);
             s = z + (sigma_new / sigma) * s;
             sigma = sigma_new;
@@ -317,9 +387,6 @@ public:
         {
             std::cout << "PCG Iterations: " << iters <<"\n";
         }
-
-        // TODO: fix issue where p goes out of scope. Unique_ptr?
-        return std::make_unique<vec_d>(p);
     }
 
     void pressure_gradient_update()
@@ -327,16 +394,17 @@ public:
         // TODO: Pressure update. Handle solid boundary conditions
         double scale{ts * inv_rho / dx};
 
-        for (int i = 0; i < rows; i++)
+        for (int i = 1; i < rows; i++)
         {
-            for (int j = 0; j < cols; j++)
+            for (int j = 1; j < cols; j++)
             {
                 // update u
-                if ((labels[(i-1) * rows + j] == FLUID) || labels[i * rows + j] == FLUID)
+                if ((labels(i-1,j) == FLUID) || labels(i,j) == FLUID)
                 {
-                    if (labels[(i-1) * rows + j] == SOLID || labels[i*rows + j] == SOLID)
+                    if (labels(i-1, j) == SOLID || labels(i,j) == SOLID)
                     {
                         // u(i,j) = usolid(i,j);
+                        velo_x(i,j) = v_solid_x(i,j);
                     }
                     else
                     {
@@ -349,11 +417,12 @@ public:
                 }
 
                 // update v
-                if ((labels[i * rows + j-1] == FLUID) || labels[i * rows + j] == FLUID)
+                if ((labels(i,j-1) == FLUID) || labels(i,j) == FLUID)
                 {
-                    if (labels[i * rows + j-1] == SOLID || labels[i*rows + j] == SOLID)
+                    if (labels(i,j-1) == SOLID || labels(i,j) == SOLID)
                     {
-                        // u(i,j) = usolid(i,j);
+                        // u(i,j) = vsolid(i,j);
+                        velo_y(i,j) = v_solid_y(i,j);
                     }
                     else
                     {
@@ -373,7 +442,7 @@ public:
         // TODO: get pressure based on coord
     }
 
-    bool test_tol(const mat_d& A, const vec_d& p, const vec_d& b)
+    bool test_tol(const mat_d& A)
     {
         // If continue PCG iterations: returns false. If done, returns true.
         double norm_r = inf_norm(A * p);
@@ -385,31 +454,17 @@ public:
     {
         return v.maxCoeff();
     }
-
-    mat_d applyPrecon(mat_d& precon)
-    {
-        float t;
-        // TODO: precon implementation, bounds + dimension checking
-        for (int i = 1; i < rows; i++)
-        {
-            for (int j = 1; j < cols; j++)
-            {
-                if (labels[i * rows + j] == FLUID)
-                {
-
-                }
-            }
-        }
-    }
 private:
     // separating MAC into two grids (pressure, and velocity)
     // coefficient matrices for Ap=b
     mat_d Ax, Ay, Adiag;
-    mat_d pressures;
+    mat_d pressures, precon;
     mat_d velo_x, velo_y, v_solid_x, v_solid_y;
+    vec_d b, p;
     // consider slapping labels into a struct with () operator override for readability
-    std::vector<CellType > labels;
-    double u_max{0}, dx{0.f}, ts{1};
+    dataStruct<CellType> labels;
+    double u_max{0}, dx{0.f};
+    static double ts;
     // TODO: make sure glgrid is constrained to squares not just any rectangle. Honestly, this is probably just a GLSL thing
     //double dx;
     int CFL_num{5}; // C or \alpha
