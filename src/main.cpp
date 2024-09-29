@@ -23,6 +23,7 @@
 
 // other
 #include <gridgl.h>
+#include <fluid_math.h>
 
 bool fileExists(const char* fileName)
 {
@@ -47,7 +48,12 @@ void processInput(GLFWwindow *window)
     }
 }
 
-constexpr int width{800}, height{600}, grid_width{100}, grid_height{100}, stride{3};
+constexpr int width{800}, height{800}, grid_width{100}, grid_height{100}, stride{3};
+
+float dx = (float)grid_width / width;
+
+// TODO: Handle grid in OpenGL routine. Hook it up to some sort of compute shader
+MAC grid = MAC(grid_height, grid_width, dx);
 
 int main()
 {

@@ -1,5 +1,5 @@
 //
-// Created by Alexa on 9/8/2024.
+// Created by Alex on 9/8/2024.
 //
 
 #ifndef GRID_FLUID_MATH_H
@@ -14,11 +14,7 @@
 
 typedef Eigen::Vector2d vec2;
 typedef Eigen::VectorXd vec_d;
-//typedef Eigen::MatrixX2d mat2;
 typedef Eigen::MatrixX<double> mat_d;
-//typedef std::pair<int,int> pii;
-//typedef std::pair<double, double> pdd;
-//typedef std::pair<float,float> pff;
 
 // Control backend
 /*
@@ -139,15 +135,35 @@ public:
     // STEP 3: ADVECTION
     // advect quantity q: velocity,
 
-    vec2 advect(const vec2& ug, float q, const vec2& x_start)
+    void advectVeloGrid()
     {
+        // main routine for Step 3: Advection
+        // map advect
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
+                // TODO: Find if there's a cleaner way to do this than build 2 vec2's each iteration
+                advect(vec2(velo_x(i,j), velo_y(i,j)), vec2(i * dx, j * dx));
+            }
+        }
+
+    }
+
+    vec2 advect(vec2&& ug, vec2&& x_start)
+    {
+        // Velocity advection. If we advect other values, probably just create another function
+        // and rename this one
         // xg is x_start, or current pos at timestep t
         // we advect backwards to get xp, old pos at timestep t-1
         // then, interpolate values and return
         // This function will be mapped to every cell
+
+        // TODO: Consider whether to make ug rvalue reference instead of lvalue ref?
+        // May have sloppy constructor/destructor overhead from vec2 construction
         vec2 x_mid, x_p, u_mid, u_p;
 
-        // TODO: consider abstracting second-order runge-kutta
+        // consider abstracting second-order runge-kutta
         // second-order runge-kutta
         x_mid = advectPos(ug, x_start, ts * 0.5);
         u_mid = linear_interpolate_u(x_mid);
@@ -189,23 +205,43 @@ public:
         return {u,v};
     }
     // PART 3: PROJECTION
-    void project(float dt, vec2& u)
+    void project()
     {
+        // float dt, vec2& u
         // TODO: main for project routine
-        // TODO: update pressure values (including solids bounds check)
+
+        // Set rhs side (b in Ap = b), negative divergence
+        negative_divergence();
+
+        // preliminary update pressure values and velocities(including solids bounds check)
         pressure_gradient_update();
-        // TODO: calculate negative divergence
 
         // get preconditioner via modified incomplete cholesky
         // Do MIC(0) for now, look into domain decomposition for 3D parallel solves
-        //getPreconditioner();
         // perform pcg (setup A, apply preconditioner): Ap = b
+        // PCG calls the routines: getPreconditioner, applyPreconditioner
         pcg();
-        // TODO: compute new velocities with pressure-gradient update
+        // compute new velocities with pressure-gradient update
+        pressure_gradient_update();
     }
 
-    void update_pressure();
-    void negative_divergence();
+    // I think pressure_gradient update suffices as velocity update
+
+    void negative_divergence()
+    {
+        double scale{1/dx};
+        int idx{0};
+
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
+                b(idx) = -scale * (velo_x(i+1, j) - velo_x(i, j) +
+                                            velo_y(i, j+1) - velo_y(i,j));
+                idx++;
+            }
+        }
+    }
     void setupA()
     {
         // setup Ax, Ay, Adiag
@@ -321,9 +357,9 @@ public:
         }
 
         // Backward Substitution: L^Tz = q
-        for (int i = (int)rows-1; i >=0; i--)
+        for (int i = (int)rows-1; i >=1; i--)
         {
-            for (int j = (int)cols-1; j >= 0; j--)
+            for (int j = (int)cols-1; j >= 1; j--)
             {
                 if (labels(i,j) == FLUID)
                 {
@@ -340,7 +376,10 @@ public:
     {
         int vec_size = static_cast<int>(rows * cols);
         mat_d A(vec_size,vec_size);
-        // TODO: Set M to preconditioner
+
+        // Generate Preconditioner
+        getPreconditioner();
+
         // this M stuff is spaghetti. Revisit code structure.
         mat_d* M = &precon;
         vec_d r(vec_size), z(vec_size), s(vec_size);
@@ -387,6 +426,7 @@ public:
         {
             std::cout << "PCG Iterations: " << iters <<"\n";
         }
+        // return p
     }
 
     void pressure_gradient_update()
@@ -437,11 +477,6 @@ public:
         }
     }
 
-    void get_pressure(int r, int c)
-    {
-        // TODO: get pressure based on coord
-    }
-
     bool test_tol(const mat_d& A)
     {
         // If continue PCG iterations: returns false. If done, returns true.
@@ -454,6 +489,27 @@ public:
     {
         return v.maxCoeff();
     }
+    // main
+    int iterate()
+    {
+        // TODO: Add error handling
+        // runs single iteration of routine (main)
+        // Call in OpenGL loop, link to compute shader
+        // TODO: Decide whether to shade by pressure or velocity
+
+        // Part 1: CFL timestep update
+        update_ts();
+        // Part 2: Force Updates
+        // gravity
+        body_force_update();
+        // Part 3: Advection
+        advectVeloGrid();
+        // Part 4: Project
+        project();
+        // Return success code
+        return 0;
+    }
+
 private:
     // separating MAC into two grids (pressure, and velocity)
     // coefficient matrices for Ap=b
@@ -461,7 +517,6 @@ private:
     mat_d pressures, precon;
     mat_d velo_x, velo_y, v_solid_x, v_solid_y;
     vec_d b, p;
-    // consider slapping labels into a struct with () operator override for readability
     dataStruct<CellType> labels;
     double u_max{0}, dx{0.f};
     static double ts;
@@ -480,9 +535,5 @@ private:
 // down: v[i][j];
 // left: u[i][j];
 // right: u[i+1][j];
-
-
-void project(float dt, vec2 u);
-
 
 #endif //GRID_FLUID_MATH_H

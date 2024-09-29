@@ -18,6 +18,7 @@ add_executable(FluidSim
         src/main.cpp
         include/gridgl.h
         include/fluid_math.h
+        include/mv_containers.h
 )
 
 

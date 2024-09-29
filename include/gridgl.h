@@ -1,5 +1,5 @@
 //
-// Created by Alexa on 8/31/2024.
+// Created by Alex on 8/31/2024.
 //
 
 // this grid is not necessary, we can just do width 1, height 1
