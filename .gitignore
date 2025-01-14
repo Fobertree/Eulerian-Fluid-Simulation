@@ -1,3 +1,13 @@
 .idea/
 .vscode/
 cmake-build-debug/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+CMakeFiles/
+cmake-build-debug-visual-studio/
+x64/*
+.cmake/*
+FluidSim.dir/
+Debug/
+Testing/

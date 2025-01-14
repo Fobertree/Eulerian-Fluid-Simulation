@@ -53,7 +53,7 @@ constexpr int width{800}, height{800}, grid_width{100}, grid_height{100}, stride
 float dx = (float)grid_width / width;
 
 // TODO: Handle grid in OpenGL routine. Hook it up to some sort of compute shader
-MAC grid = MAC(grid_height, grid_width, dx);
+//MAC grid = MAC(grid_height, grid_width, dx);
 
 int main()
 {
@@ -61,9 +61,9 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
-    GLFWwindow  *window = glfwCreateWindow(width,height, "grid", NULL,NULL);
+    GLFWwindow  *window = glfwCreateWindow(width,height, "grid", nullptr,nullptr);
 
-    if (window == NULL)
+    if (window == nullptr)
     {
         std::cout << "Failed to create new window" << std::endl;
         glfwTerminate();
@@ -127,15 +127,15 @@ int main()
     // VAO: enable vertex attributes
 
     // position attributes
-    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,stride*SIZE_F,(void*) 0);
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,stride*SIZE_F,nullptr);
     glEnableVertexAttribArray(0);
 
     // set cell size uniform in fragment shader
     PRINT("norm height::" << grid.getNormHeight());
-    PRINT("norm widgth::" << grid.getNormWidth());
+    PRINT("norm width::" << grid.getNormWidth());
     glm::vec2 cell = glm::vec2(grid.getNormWidth(), grid.getNormHeight());
     GLuint cell_size_unif = glGetUniformLocation(boxShader.ID, "cell_size");
-    glUniform2fv(cell_size_unif, 1, glm::value_ptr(cell));
+    glUniform2fv((GLint)cell_size_unif, 1, glm::value_ptr(cell));
 
     while (!glfwWindowShouldClose(window))
     {

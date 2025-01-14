@@ -7,10 +7,10 @@ include_directories(include)
 
 find_package(OpenGL REQUIRED)
 # below packages installed via vcpkg
-find_package(glfw3 CONFIG REQUIRED)
-find_package(glad CONFIG REQUIRED)
-find_package(glm CONFIG REQUIRED)
-find_package(Eigen3 CONFIG REQUIRED)
+find_package(glfw3 REQUIRED)
+find_package(glad REQUIRED)
+find_package(glm REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 add_executable(FluidSim
         src/main.cpp

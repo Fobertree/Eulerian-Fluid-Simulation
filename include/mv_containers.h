@@ -30,7 +30,7 @@ struct vec_d_container {
     // replace below with smth more solid later
     size_t r_size {0}, c_size {0};
 
-    vec_d_container<T>(const vec_d& data, size_t&& length, const size_t& rows, const size_t& cols, std::string&& name = "None")
+    vec_d_container<T>(const vec_d& data, size_t& length, const size_t& rows, const size_t& cols, std::string&& name = "None")
     {
         this-> data = data;
         this-> length = length;
@@ -75,7 +75,7 @@ struct vec_d_container {
             return nullptr;
         }
 
-        return data(idx);
+        return data(static_cast<int>(idx));
     }
 
     int operator()(int i, int j)

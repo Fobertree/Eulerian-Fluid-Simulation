@@ -184,7 +184,7 @@ public:
     }
     vec2 linear_interpolate_u(const vec2& pos) {
         // interpolate velocity
-        // bi-linear interpolation for now. Consider cubic for later
+        // bi-linear interpolation for now. Change to cubic B-Splines later
         // q^{n+1}_i = (1-\alpha) q_j ^n + \alpha q^n _ {j+1}
 
         double a_x, a_y;
@@ -212,11 +212,16 @@ public:
 
         // Set rhs side (b in Ap = b), negative divergence
         negative_divergence();
+        // TODO: figure out whether i screwed up calling pressure_gradient_update twice here
 
-        // preliminary update pressure values and velocities(including solids bounds check)
-        pressure_gradient_update();
+        // is this troll?
+        //// preliminary update pressure values and velocities(including solids bounds check)
+        //pressure_gradient_update();
 
-        // get preconditioner via modified incomplete cholesky
+        // NOTE: pcg function not only computes pcg
+        // but calls setupA() and getPreconditioner, so the steps should be properly followed
+        // for single-threaded solves, no domain decomposition yet
+
         // Do MIC(0) for now, look into domain decomposition for 3D parallel solves
         // perform pcg (setup A, apply preconditioner): Ap = b
         // PCG calls the routines: getPreconditioner, applyPreconditioner
@@ -305,7 +310,11 @@ public:
         // Modified Incomplete Cholesky Decomposition Level Zero
         // Create preconditioner here
         // TODO: Check this
+
+        // setting up A
         setupA();
+
+        // begin preconditioner setup
         double e;
         // tau is split between mic and ic
 
@@ -431,6 +440,9 @@ public:
 
     void pressure_gradient_update()
     {
+        // update velocity based on projection
+        // \vec{u}^{n+1} = \vec u - \Delta t \frac{1}{\rho}\nabla p
+        // last step of project routine
         // TODO: Pressure update. Handle solid boundary conditions
         double scale{ts * inv_rho / dx};
 
@@ -493,7 +505,7 @@ public:
     int iterate()
     {
         // TODO: Add error handling
-        // runs single iteration of routine (main)
+        // runs single iteration of routine (MAIN)
         // Call in OpenGL loop, link to compute shader
         // TODO: Decide whether to shade by pressure or velocity
 
